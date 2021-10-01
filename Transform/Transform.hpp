@@ -1,6 +1,5 @@
 #include <vector>
 #include <d3dx9.h>
-#include "utils.hpp"
 #pragma once
 
 struct Rotation
@@ -246,7 +245,7 @@ struct Rotation
 		// yaw
 		float sinp = 2 * (q->w * q->y - q->z * q->x);
 		if (std::fabsf(sinp) >= 1)
-			result.yaw = std::copysign(D3DX_PI / 2, sinp); // use 90 degrees if out of range
+			result.yaw = std::copysign(D3DX_PI / 2, sinp);
 		else
 			result.yaw = std::asinf(sinp);
 
