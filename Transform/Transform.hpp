@@ -6,8 +6,8 @@
 struct Rotation
 {
 	float yaw,
-		  pitch,
-		  roll;
+	      pitch,
+	      roll;
 
 	// 代入
 	Rotation& operator = (const Rotation& rh)
