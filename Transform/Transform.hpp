@@ -1,14 +1,15 @@
 #include <vector>
 #include <d3dx9.h>
+#include "utils.hpp"
 #pragma once
 
 struct Rotation
 {
 	float yaw,
-	      pitch,
-	      roll;
+		  pitch,
+		  roll;
 
-	// ä»£å…¥
+	// ‘ã“ü
 	Rotation& operator = (const Rotation& rh)
 	{
 		this->yaw   = rh.yaw;
@@ -17,7 +18,7 @@ struct Rotation
 		return *this;
 	}
 
-	// ç®—è¡“
+	// Zp
 	Rotation operator + (const Rotation& rh) const
 	{
 		Rotation ret;
@@ -67,7 +68,7 @@ struct Rotation
 		return ret;
 	};
 
-	// è¤‡åˆ
+	// •¡‡
 	Rotation& operator += (const Rotation& rh)
 	{
 		this->yaw   += rh.yaw;
@@ -118,7 +119,7 @@ struct Rotation
 		return *this;
 	};
 
-	//å˜é …
+	//’P€
 	Rotation operator + () const
 	{
 		return *this;
@@ -132,7 +133,7 @@ struct Rotation
 		return ret;
 	};
 
-	// æ¯”è¼ƒ
+	// ”äŠr
 	bool operator == (const Rotation& rh) const
 	{
 		if (!(this->yaw   == rh.yaw))   return false;
@@ -162,7 +163,7 @@ struct Rotation
 		return true;
 	}
 
-	// ã‚­ãƒ£ã‚¹ãƒˆ
+	// ƒLƒƒƒXƒg
 	operator D3DXVECTOR3() const 
 	{
 		return D3DXVECTOR3
@@ -172,41 +173,139 @@ struct Rotation
 			this->roll
 		);
 	}
+
 	
-	// è‡ªèº«ã‚’å¼§åº¦æ³•ã«å¤‰æ›
+
+
+	/// <summary>
+	///  ‰ñ“]‚©‚çƒxƒNƒgƒ‹‚ğæ“¾ —á : Rotation(0,0,0) => D3DXVECTOR3(1,0,0)
+	/// </summary>
+	/// <param name="mode"> 0 : Forward(ƒfƒtƒHƒ‹ƒg)</param>
+	/// <param name="mode"> 1 : up</param>
+	/// <param name="mode"> 2 : left</param>
+	/// <returns> mode ‚É‰‚¶‚½ƒxƒNƒgƒ‹ </returns>
+	D3DXVECTOR3 ToVector3(int mode = 0) const
+	{
+		float y =  this->yaw   * (acos(-1.0f) / 180.0f),
+			  p =  this->pitch * (acos(-1.0f) / 180.0f),
+			  r = -this->roll  * (acos(-1.0f) / 180.0f);
+
+		float sy = sin(y),
+			  sp = sin(p),
+			  sr = sin(r);
+
+		float cy = cos(y),
+			  cp = cos(p),
+			  cr = cos(r);
+
+		float vx, vy, vz;
+		vx = vy = vz = 0.0f;
+
+		int roundNum = 100000;
+		switch (mode)
+		{
+		case 0: // forward
+			vx = round( (-sp*sr*sy + cr*cy) * roundNum ) / roundNum;  //­”‘æ log(roundNum) Œ…‚ÅlÌŒÜ“ü
+			vy = round(            (-cp*sr) * roundNum ) / roundNum;
+			vz = round( (-cr*sy - sp*sr*cy) * roundNum ) / roundNum;
+			break;
+
+		case 1: // up
+			vx = round( ( sp*cr*sy + sr*cy) * roundNum ) / roundNum;
+			vy = round(             (cp*cr) * roundNum ) / roundNum;
+			vz = round( (-sr*sy + sp*cr*cy) * roundNum ) / roundNum;
+			break;
+
+		case 2: // left
+			vx = round( (cp*sy) * roundNum ) / roundNum;
+			vy = round(   (-sp) * roundNum ) / roundNum;
+			vz = round( (cp*cy) * roundNum ) / roundNum;
+			break;
+
+		default:
+			OutputDebugFormat("Rotation.ToVector : mode error.\n");
+			break;
+		}
+
+		return D3DXVECTOR3(vx, vy, vz);
+	}
+
+	D3DXVECTOR3 RadianToVector3(int mode = 0) const
+	{
+		float sy = sin(this->yaw),
+			  sp = sin(this->pitch),
+			  sr = sin(-this->roll);
+
+		float cy = cos(this->yaw),
+			  cp = cos(this->pitch),
+			  cr = cos(-this->roll);
+
+		float vx, vy, vz;
+		vx = vy = vz = 0.0f;
+
+		int roundNum = 100000;
+		switch (mode)
+		{
+		case 0: // forward
+			vx = round( (-sp*sr*sy + cr*cy) * roundNum ) / roundNum;  //­”‘æ log(roundNum) Œ…‚ÅlÌŒÜ“ü
+			vy = round(            (-cp*sr) * roundNum ) / roundNum;
+			vz = round( (-cr*sy - sp*sr*cy) * roundNum ) / roundNum;
+			break;
+
+		case 1: // up
+			vx = round( ( sp*cr*sy + sr*cy) * roundNum ) / roundNum;
+			vy = round(             (cp*cr) * roundNum ) / roundNum;
+			vz = round( (-sr*sy + sp*cr*cy) * roundNum ) / roundNum;
+			break;
+
+		case 2: // left
+			vx = round( (cp*sy) * roundNum ) / roundNum;
+			vy = round(   (-sp) * roundNum ) / roundNum;
+			vz = round( (cp*cy) * roundNum ) / roundNum;
+			break;
+
+		default:
+			OutputDebugFormat("Rotation.ToVector : mode error.\n");
+			break;
+		}
+
+		return D3DXVECTOR3(vx, vy, vz);
+	}
+	
+	// ©g‚ğŒÊ“x–@‚É•ÏŠ·
 	Rotation ToRadian()
 	{
-		float convert = D3DX_PI / 180.0f;
+		float convert = 3.141592654f / 180.0f;
 
 		return Rotation(this->yaw * convert, this->pitch * convert, this->roll * convert);
 	}
 
-	// è‡ªèº«ã®ãƒ©ã‚¸ã‚¢ãƒ³å€¤ã‚’è¿”ã™
+	// ©g‚Ìƒ‰ƒWƒAƒ“’l‚ğ•Ô‚·
 	Rotation GetRadian() const
 	{
-		float convert = D3DX_PI / 180.0f;
+		float convert = 3.141592654f / 180.0f;
 
 		return Rotation(this->yaw * convert, this->pitch * convert, this->roll * convert);
 	}
 
-	// è‡ªèº«ã‚’åº¦æ•°æ³•ã«å¤‰æ›
+	// ©g‚ğ“x”–@‚É•ÏŠ·
 	Rotation ToDegree()
 	{
-		float convert = 180.0f / D3DX_PI;
+		float convert = 180.0f / 3.141592654f;
 
 		return Rotation(this->yaw *= convert, this->pitch *= convert, this->roll *= convert);
 	}
 
-	// è‡ªèº«ã®åº¦ã‚’è¿”ã™
+	// ©g‚Ì“x‚ğ•Ô‚·
 	Rotation GetDegree() const
 	{
-		float convert = D3DX_PI / 180.0f;
+		float convert = 3.141592654f / 180.0f;
 
 		return Rotation(this->yaw * convert, this->pitch * convert, this->roll * convert);
 	}
 	
 
-	// -PI ~ +PI ã®ç¯„å›²ã«æ­£è¦åŒ–
+	// -PI ~ +PI ‚Ì”ÍˆÍ‚É³‹K‰»
 	void Normalize(bool degree = false)
 	{
 		const float unit = (degree ? 180.0f : D3DX_PI);
@@ -220,7 +319,7 @@ struct Rotation
 		if (this->roll  < -unit) this->roll  += (2 * unit);
 	}
 
-	// æ­£è¦åŒ–ã•ã‚ŒãŸRotationã‚’è¿”ã™
+	// ³‹K‰»‚³‚ê‚½Rotation‚ğ•Ô‚·
 	Rotation GetNormal(bool degree = false) const
 	{
 		Rotation result;
@@ -237,7 +336,7 @@ struct Rotation
 		return result;
 	}
 	
-	// ã‚¯ã‚©ãƒ¼ã‚¿ãƒ‹ã‚ªãƒ³ -> ã‚ªã‚¤ãƒ©ãƒ¼è§’
+	// ƒNƒH[ƒ^ƒjƒIƒ“ -> ƒIƒCƒ‰[Šp
 	static Rotation QuatToRotation(const D3DXQUATERNION* q)
 	{
 		Rotation result;
@@ -245,7 +344,7 @@ struct Rotation
 		// yaw
 		float sinp = 2 * (q->w * q->y - q->z * q->x);
 		if (std::fabsf(sinp) >= 1)
-			result.yaw = std::copysign(D3DX_PI / 2, sinp);
+			result.yaw = std::copysign(D3DX_PI / 2, sinp); // use 90 degrees if out of range
 		else
 			result.yaw = std::asinf(sinp);
 
@@ -286,57 +385,96 @@ public:
 	(
 		Transform*   const parent,
 		D3DXVECTOR3* const location,
-		Rotation*    const rotation = nullptr,
-		D3DXVECTOR3* const scale    = nullptr
+		Rotation*    const rotation,
+		D3DXVECTOR3* const scale
+	);
+
+	Transform
+	(
+		Transform*  const parent,
+		const D3DXMATRIX* const localMatrix
 	);
 
 	~Transform();
 
 
 public:
-	/***** è¦ªå­é–¢é€£ *****/
+	/***** eqŠÖ˜A *****/
 
-	// accessor
+	// e‚ğæ“¾
     Transform* GetParent() const;
+
+	// e‚ğw’è‚·‚é ( parent = nullptr ‚Åeq‰ğœ )
 	void SetParent(Transform* const parent);
 
+	// q‹Ÿ‚½‚¿‚ğæ“¾
 	const std::vector<Transform*>& GetChildren() const;
 
-	// è¦ªå­ã«ãªã‚‹ ( nullptr ã‚’æŒ‡å®šã—ãŸã‚‰è¦ªå­è§£é™¤ )
+	// eq‚É‚È‚é ( parent = nullptr ‚Åeq‰ğœ )
 	void BecomeParents(Transform* const parent);
 
-	// å­ã‚’è¿½åŠ 
+	// eq‚ğ‰ğœ‚·‚é
+	void BreakParents();
+
+	// q‚ğ’Ç‰Á
 	bool AddChild(Transform* const child);
 
-	// å­ã‚’é™¤ã
+	// q‚ğœ‚­
 	bool RemoveChild(Transform* const child);
 
-	// å…ˆç¥–ã« ancestor ãŒå­˜åœ¨ã™ã‚‹ã‹
+	// æ‘c‚É ˆø”‚Ìancestor ‚ª‘¶İ‚·‚é‚©
 	bool CheckAncestor(Transform* const ancestor);
 
-	// è¦ªã‚’æŒã£ã¦ã‚‹ã‹
+	// e‚ğ‚Á‚Ä‚é‚©
 	bool HasParent();
 
-	// å­ã‚’æŒã£ã¦ã‚‹ã‹
+	// q‚ğ‚Á‚Ä‚é‚©
 	bool HasChild();
 
 public:
 	/***** matrix *****/
 
+	// ƒ[ƒ‹ƒhs—ñ‚ğæ“¾
 	const D3DXMATRIX& GetWorldMatrix()  const;
+
+	// ƒ[ƒ‹ƒhs—ñ‚ğƒZƒbƒgAƒ[ƒJƒ‹s—ñ‚ğXV
+	void SetWorldMatrix(const D3DXMATRIX* const worldMatrix);
+	
+	// ƒ[ƒJƒ‹s—ñ‚ğæ“¾
 	const D3DXMATRIX& GetLocalMatrix()  const;
 
-	// å›è»¢è¡Œåˆ—ã‚’å–å¾—
+	// ƒ[ƒJƒ‹s—ñ‚ğƒZƒbƒgAƒ[ƒ‹ƒhs—ñ‚ğXV
+	void SetLocalMatrix(const D3DXMATRIX* const localMatrix);
+
+	// ƒ[ƒ‹ƒh‰ñ“]s—ñ‚ğæ“¾
 	D3DXMATRIX GetWorldRotationMatrix() const;
+
+	// ƒ[ƒJƒ‹‰ñ“]s—ñ‚ğæ“¾
 	D3DXMATRIX GetLocalRotationMatrix() const;
 
-	// ãƒ¯ãƒ¼ãƒ«ãƒ‰å¤‰æ›è¡Œåˆ—ã‚’ç”Ÿæˆ
+	// ƒ[ƒ‹ƒh•ÏŠ·s—ñ‚ğ¶¬
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒh•ÏŠ·s—ñ‚ğ¶¬
+	/// </summary>
+	/// <param name="location">	À•W </param>
+	/// <param name="rotation">	ƒIƒCƒ‰[Šp </param>
+	/// <param name="scale">	ƒXƒP[ƒ‹ </param>
+	/// <returns> ƒ[ƒ‹ƒh•ÏŠ·s—ñ </returns>
 	static D3DXMATRIX CreateWorldTranslationMatrix
 	(
 		const D3DXVECTOR3* const location,
 		const Rotation*    const rotation,
 		const D3DXVECTOR3* const scale
 	);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒh•ÏŠ·s—ñ‚ğ¶¬
+	/// </summary>
+	/// <param name="location">			À•W </param>
+	/// <param name="rotationMatrix">	‰ñ“]s—ñ </param>
+	/// <param name="scale">			ƒXƒP[ƒ‹ </param>
+	/// <returns></returns>
 	static D3DXMATRIX CreateWorldTranslationMatrix
 	(
 		const D3DXVECTOR3* const location,
@@ -349,65 +487,267 @@ public:
 public:
 	/***** location *****/
 
-	/*** world ***/
+	//******************************************************************************************
+	// world
+	//******************************************************************************************
 
+	/// ƒ[ƒ‹ƒhÀ•W‚ğæ“¾
 	D3DXVECTOR3 GetWorldLocation() const;
 
-	void SetWorldLocation(const D3DXVECTOR3* const location);
-	void SetWorldLocation(float x, float y, float z);
+	/// <summary>
+	/// ƒ[ƒ‹ƒhÀ•W‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="location">		ƒZƒbƒg‚·‚éÀ•W </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldLocation(const D3DXVECTOR3* const location, bool bLocalUpdate = true);
 
-	void SetWorldLocationX(float x);
-	void SetWorldLocationY(float y);
-	void SetWorldLocationZ(float z);
+	/// <summary>
+	/// ƒ[ƒ‹ƒhÀ•W‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="(x, y, z)">	ƒZƒbƒg‚·‚éÀ•W </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldLocation(float x, float y, float z, bool bLocalUpdate = true);
 
-	void AddWorldLocation(const D3DXVECTOR3* const location);
-	void AddWorldLocation(float x, float y, float z);
+	/// <summary>
+	/// ƒ[ƒ‹ƒhÀ•W( x ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="x">			ƒZƒbƒg‚·‚é x À•W </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldLocationX(float x, bool bLocalUpdate = true);
 
-	/*** local ***/
+	/// <summary>
+	/// ƒ[ƒ‹ƒhÀ•W( y ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="y">			ƒZƒbƒg‚·‚é y À•W </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldLocationY(float y, bool bLocalUpdate = true);
 
+	/// <summary>
+	/// ƒ[ƒ‹ƒhÀ•W( z ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="z">			ƒZƒbƒg‚·‚é z À•W </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldLocationZ(float z, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhÀ•W‚É‰ÁZ
+	/// </summary>
+	/// <param name="location">		‰ÁZ‚·‚éÀ•W’l </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddWorldLocation(const D3DXVECTOR3* const location, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhÀ•W‚É‰ÁZ
+	/// </summary>
+	/// <param name="(x, y, z)">	‰ÁZ‚·‚éÀ•W’l </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddWorldLocation(float x, float y, float z, bool bLocalUpdate = true);
+
+	//******************************************************************************************
+	// local
+	//******************************************************************************************
+
+	/// ƒ[ƒJƒ‹À•W‚ğæ“¾
 	D3DXVECTOR3 GetLocalLocation() const;
 
-	void SetLocalLocation(const D3DXVECTOR3* const location);
-	void SetLocalLocation(float x, float y, float z);
+	/// <summary>
+	/// ƒ[ƒJƒ‹À•W‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="location">		ƒZƒbƒg‚·‚éÀ•W </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalLocation(const D3DXVECTOR3* const location, bool bWorldUpdate = true);
 
-	void SetLocalLocationX(float x);
-	void SetLocalLocationY(float y);
-	void SetLocalLocationZ(float z);
+	/// <summary>
+	/// ƒ[ƒJƒ‹À•W‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="(x, y, z)">	ƒZƒbƒg‚·‚éÀ•W </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalLocation(float x, float y, float z, bool bWorldUpdate = true);
 
-	void AddLocalLocation(const D3DXVECTOR3* const location);
-	void AddLocalLocation(float x, float y, float z);
+	/// <summary>
+	/// ƒ[ƒJƒ‹À•W( x ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="x">			ƒZƒbƒg‚·‚é x À•W </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalLocationX(float x, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹À•W( y ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="y">			ƒZƒbƒg‚·‚é y À•W </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalLocationY(float y, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹À•W( z ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="z">			ƒZƒbƒg‚·‚é z À•W </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalLocationZ(float z, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹À•W‚É‰ÁZ
+	/// </summary>
+	/// <param name="location">		‰ÁZ‚·‚éÀ•W’l </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddLocalLocation(const D3DXVECTOR3* const location, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹À•W‚É‰ÁZ
+	/// </summary>
+	/// <param name="(x, y, z)">	‰ÁZ‚·‚éÀ•W’l </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddLocalLocation(float x, float y, float z, bool bWorldUpdate = true);
 
 
 public:
-	/***** rotation *****/
+	/***** rotation, quaternion *****/
 
 	/*** world ***/
 
-	// èª¤å·®æœ‰
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒIƒCƒ‰[Šp‰ñ“]—Ê‚ğæ“¾ (Œë·—L)
 	Rotation GetWorldRotation() const;
 
-	void SetWorldRotation(const Rotation* const rotation);
-	void SetWorldRotation(float yaw, float pitch, float roll);
+	/// ƒNƒH[ƒ^ƒjƒIƒ“(world)‚ğæ“¾
+	D3DXQUATERNION GetWorldQuaternion() const;
 
-	void AddWorldRotation(const Rotation* const rotation);
-	void AddWorldRotation(float yaw, float pitch, float roll);
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚Ì‰ñ“]‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="rotation">		ƒZƒbƒg‚·‚é‰ñ“] </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldRotation(const Rotation* const rotation, bool bLocalUpdate = true);
 
-	void WorldRotateAroundAxis(float x, float y, float z, float w);
-	void WorldRotateAroundAxis(const D3DXVECTOR3* axis, float w);
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚Ì‰ñ“]‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="(yaw, pitch, roll)">	ƒZƒbƒg‚·‚é‰ñ“] </param>
+	/// <param name="bLocalUpdate">			ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldRotation(float yaw, float pitch, float roll, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚Ì‰ñ“]‚É‰ÁZ
+	/// </summary>
+	/// <param name="rotation">		‰ÁZ‚·‚é‰ñ“]—Ê </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddWorldRotation(const Rotation* const rotation, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚Ì‰ñ“]‚É‰ÁZ
+	/// </summary>
+	/// <param name="(yaw, pitch, roll)">	‰ÁZ‚·‚é‰ñ“]—Ê </param>
+	/// <param name="bLocalUpdate">			ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddWorldRotation(float yaw, float pitch, float roll, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ‰ñ“]²‚Æ‰ñ“]—Ê‚©‚çƒ[ƒ‹ƒhs—ñ‚ğ‰ñ“]
+	/// </summary>
+	/// <param name="(x, y, z)	">	‰ñ“]² </param>
+	/// <param name="w	">			‰ñ“]—Ê </param>
+	/// <param name="bLocalUpdate"> ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true)</param>
+	void WorldRotateAroundAxis(float x, float y, float z, float w, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ‰ñ“]²‚Æ‰ñ“]—Ê‚©‚çƒ[ƒ‹ƒhs—ñ‚ğ‰ñ“]
+	/// </summary>
+	/// <param name="axis	">		‰ñ“]² </param>
+	/// <param name="w	">			‰ñ“]—Ê </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void WorldRotateAroundAxis(const D3DXVECTOR3* axis, float w, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚Ì‰ñ“]‚ğƒNƒH[ƒ^ƒjƒIƒ“‚ÅƒZƒbƒg
+	/// </summary>
+	/// <param name="(x, y, z, w)">	ƒZƒbƒg‚·‚éƒNƒH[ƒ^ƒjƒIƒ“ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldQuaternion(float x, float y, float z, float w, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚Ì‰ñ“]‚ğƒNƒH[ƒ^ƒjƒIƒ“‚ÅƒZƒbƒg
+	/// </summary>
+	/// <param name="(axis, w)">	ƒZƒbƒg‚·‚éƒNƒH[ƒ^ƒjƒIƒ“ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldQuaternion(const D3DXVECTOR3* axis, float w, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚Ì‰ñ“]‚ğƒNƒH[ƒ^ƒjƒIƒ“‚ÅƒZƒbƒg
+	/// </summary>
+	/// <param name="quat">			ƒZƒbƒg‚·‚éƒNƒH[ƒ^ƒjƒIƒ“</param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldQuaternion(const D3DXQUATERNION* quat, bool bLocalUpdate = true);
 
 	/*** local ***/
+	
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒIƒCƒ‰[Šp‰ñ“]—Ê‚ğæ“¾ (Œë·—L)
+	Rotation       GetLocalRotation()   const;
 
-	// èª¤å·®æœ‰
-	Rotation GetLocalRotation() const;
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒNƒH[ƒ^ƒjƒIƒ“‚ğæ“¾
+	D3DXQUATERNION GetLocalQuaternion() const;
 
-	void SetLocalRotation(const Rotation* const rotation);
-	void SetLocalRotation(float yaw, float pitch, float roll);
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚Ì‰ñ“]‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="rotation">		ƒZƒbƒg‚·‚é‰ñ“] </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalRotation(const Rotation* const rotation, bool bWorldUpdate = true);
 
-	void AddLocalRotation(const Rotation* const rotation);
-	void AddLocalRotation(float yaw, float pitch, float roll);
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚Ì‰ñ“]‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="(yaw, pitch, roll)">	ƒZƒbƒg‚·‚é‰ñ“] </param>
+	/// <param name="bWorldUpdate">			ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalRotation(float yaw, float pitch, float roll, bool bWorldUpdate = true);
 
-	void LocalRotateAroundAxis(float x, float y, float z, float w);
-	void LocalRotateAroundAxis(const D3DXVECTOR3* axis, float w);
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚Ì‰ñ“]‚É‰ÁZ
+	/// </summary>
+	/// <param name="rotation">		‰ÁZ‚·‚é‰ñ“]—Ê </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true)	</param>
+	void AddLocalRotation(const Rotation* const rotation, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚Ì‰ñ“]‚É‰ÁZ
+	/// </summary>
+	/// <param name="(yaw, pitch, roll)">	‰ÁZ‚·‚é‰ñ“]—Ê </param>
+	/// <param name="bWorldUpdate">			ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddLocalRotation(float yaw, float pitch, float roll, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ‰ñ“]²‚Æ‰ñ“]—Ê‚©‚çƒ[ƒJƒ‹s—ñ‚ğ‰ñ“]
+	/// </summary>
+	/// <param name="(x, y, z)	">	‰ñ“]² </param>
+	/// <param name="w	">			‰ñ“]—Ê </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void LocalRotateAroundAxis(float x, float y, float z, float w, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ‰ñ“]²‚Æ‰ñ“]—Ê‚©‚çƒ[ƒJƒ‹s—ñ‚ğ‰ñ“]
+	/// </summary>
+	/// <param name="axis	">		‰ñ“]² </param>
+	/// <param name="w	">			‰ñ“]—Ê </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void LocalRotateAroundAxis(const D3DXVECTOR3* axis, float w, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚Ì‰ñ“]‚ğƒNƒH[ƒ^ƒjƒIƒ“‚ÅƒZƒbƒg
+	/// </summary>
+	/// <param name="(x, y, z, w)">	ƒZƒbƒg‚·‚éƒNƒH[ƒ^ƒjƒIƒ“ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalQuaternion(float x, float y, float z, float w, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚Ì‰ñ“]‚ğƒNƒH[ƒ^ƒjƒIƒ“‚ÅƒZƒbƒg
+	/// </summary>
+	/// <param name="(axis, w)">	ƒZƒbƒg‚·‚éƒNƒH[ƒ^ƒjƒIƒ“ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true)</param>
+	void SetLocalQuaternion(const D3DXVECTOR3* axis, float w, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚Ì‰ñ“]‚ğƒNƒH[ƒ^ƒjƒIƒ“‚ÅƒZƒbƒg
+	/// </summary>
+	/// <param name="quat">			ƒZƒbƒg‚·‚éƒNƒH[ƒ^ƒjƒIƒ“ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalQuaternion(const D3DXQUATERNION* quat, bool bWorldUpdate = true);
 
 
 public:
@@ -415,33 +755,111 @@ public:
 
 	/*** world ***/
 
-	// èª¤å·®æœ‰
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒXƒP[ƒ‹‚ğæ“¾
 	D3DXVECTOR3 GetWorldScale() const;
 
-	void SetWorldScale(const D3DXVECTOR3* const scale);
-	void SetWorldScale(float x, float y, float z);
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒXƒP[ƒ‹‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="scale">		ƒZƒbƒg‚·‚éƒXƒP[ƒ‹ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldScale(const D3DXVECTOR3* const scale, bool bLocalUpdate = true);
 
-	void SetWorldScaleX(float x);
-	void SetWorldScaleY(float y);
-	void SetWorldScaleZ(float z);
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒXƒP[ƒ‹‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="(x, y, z)">	ƒZƒbƒg‚·‚éƒXƒP[ƒ‹ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldScale(float x, float y, float z, bool bLocalUpdate = true);
 
-	void AddWorldScale(const D3DXVECTOR3* const scale);
-	void AddWorldScale(float x, float y, float z);
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒXƒP[ƒ‹( x ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="x">			ƒZƒbƒg‚·‚é x ƒXƒP[ƒ‹ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldScaleX(float x, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒXƒP[ƒ‹( y ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="y">			ƒZƒbƒg‚·‚é y ƒXƒP[ƒ‹ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldScaleY(float y, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒXƒP[ƒ‹( z ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="z">			ƒZƒbƒg‚·‚é z ƒXƒP[ƒ‹ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetWorldScaleZ(float z, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒXƒP[ƒ‹‚É‰ÁZ
+	/// </summary>
+	/// <param name="scale">		‰ÁZ‚·‚éƒXƒP[ƒ‹ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddWorldScale(const D3DXVECTOR3* const scale, bool bLocalUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒ‹ƒhs—ñ‚ÌƒXƒP[ƒ‹‚É‰ÁZ
+	/// </summary>
+	/// <param name="(x, y, z)">	‰ÁZ‚·‚éƒXƒP[ƒ‹ </param>
+	/// <param name="bLocalUpdate">	ƒ[ƒJƒ‹s—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddWorldScale(float x, float y, float z, bool bLocalUpdate = true);
 
 	/*** local ***/
 	
-	// èª¤å·®æœ‰
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒXƒP[ƒ‹‚ğæ“¾
 	D3DXVECTOR3 GetLocalScale() const;
 
-	void SetLocalScale(const D3DXVECTOR3* const scale);
-	void SetLocalScale(float x, float y, float z);
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒXƒP[ƒ‹‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="scale">		ƒZƒbƒg‚·‚éƒXƒP[ƒ‹ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalScale(const D3DXVECTOR3* const scale, bool bWorldUpdate = true);
 
-	void SetLocalScaleX(float x);
-	void SetLocalScaleY(float y);
-	void SetLocalScaleZ(float z);
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒXƒP[ƒ‹‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="(x, y, z)">	ƒZƒbƒg‚·‚éƒXƒP[ƒ‹ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalScale(float x, float y, float z, bool bWorldUpdate = true);
 
-	void AddLocalScale(const D3DXVECTOR3* const scale);
-	void AddLocalScale(float x, float y, float z);
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒXƒP[ƒ‹( x ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="x">			ƒZƒbƒg‚·‚é x ƒXƒP[ƒ‹ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalScaleX(float x, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒXƒP[ƒ‹( y ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="y">			ƒZƒbƒg‚·‚é y ƒXƒP[ƒ‹ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalScaleY(float y, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒXƒP[ƒ‹( z ‚Ì‚İ)‚ğƒZƒbƒg
+	/// </summary>
+	/// <param name="z">			ƒZƒbƒg‚·‚é z ƒXƒP[ƒ‹ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void SetLocalScaleZ(float z, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒXƒP[ƒ‹‚É‰ÁZ
+	/// </summary>
+	/// <param name="scale">		‰ÁZ‚·‚éƒXƒP[ƒ‹ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddLocalScale(const D3DXVECTOR3* const scale, bool bWorldUpdate = true);
+
+	/// <summary>
+	/// ƒ[ƒJƒ‹s—ñ‚ÌƒXƒP[ƒ‹‚É‰ÁZ
+	/// </summary>
+	/// <param name="(x, y, z)">	‰ÁZ‚·‚éƒXƒP[ƒ‹ </param>
+	/// <param name="bWorldUpdate">	ƒ[ƒ‹ƒhs—ñ‚ğXV‚·‚é‚© (ƒfƒtƒHƒ‹ƒg‚Å true) </param>
+	void AddLocalScale(float x, float y, float z, bool bWorldUpdate = true);
 
 
 public:
@@ -456,27 +874,45 @@ public:
 	// x direction ( world )
 	D3DXVECTOR3 GetRightVector() const;
 
+	// z direction ( local )
+	D3DXVECTOR3 GetLocalForwardVector() const;
+
+	// y direction ( local )
+	D3DXVECTOR3 GetLocalUpVector() const;
+
+	// x direction ( local )
+	D3DXVECTOR3 GetLocalRightVector() const;
 
 public:
 	/****** matrix updater *****/
 
-	// ãƒ¯ãƒ¼ãƒ«ãƒ‰è¡Œåˆ—ã‚’æ›´æ–°
-	void UpdateWorldMatrix();
+	// ƒ[ƒ‹ƒhs—ñ‚ğXV
+	void UpdateWorldMatrix(bool bCallEventUpdated = true);
 
-	// ãƒ­ãƒ¼ã‚«ãƒ«è¡Œåˆ—ã‚’æ›´æ–°
-	void UpdateLocalMatrix();
+	// ƒ[ƒJƒ‹s—ñ‚ğXV
+	void UpdateLocalMatrix(bool bCallEventUpdated = true);
 
 
 protected:
-	// worldMatrix ã‚’ç›´æ¥å¤‰æ›´ã—ãŸã‚‰ã€UpdateLocalMatrix() ã‚‚å‘¼ã¶ã“ã¨
+	// worldMatrix ‚ğ’¼Ú•ÏX‚µ‚½‚çAUpdateLocalMatrix() ‚àŒÄ‚Ô‚±‚Æ
 	D3DXMATRIX worldMatrix;
 
-	// localMatrix ã‚’ç›´æ¥å¤‰æ›´ã—ãŸã‚‰ã€UpdateWorldMatrix() ã‚‚å‘¼ã¶ã“ã¨
+	// localMatrix ‚ğ’¼Ú•ÏX‚µ‚½‚çAUpdateWorldMatrix() ‚àŒÄ‚Ô‚±‚Æ
 	D3DXMATRIX localMatrix;
 
 
 private:
+
+	// q‹Ÿ‚½‚¿
 	std::vector<Transform*> childrenTransforms;
 
+	// e
 	Transform* parentTransform;
+
+
+private:
+
+	// s—ñ‚ªXV‚³‚ê‚½‚Æ‚«‚ÉŒÄ‚Î‚ê‚é
+	virtual void EventTransformUpdated() {};
+
 };

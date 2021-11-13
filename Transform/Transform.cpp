@@ -1,46 +1,54 @@
 #include "Transform.hpp"
 
-Transform::Transform() : Transform(nullptr, nullptr)
+Transform::Transform() : Transform(nullptr, nullptr) // ˆÏ÷
 {
 }
 
-Transform::Transform(Transform * parent) : Transform(parent, nullptr)
+Transform::Transform(Transform* parent) : Transform(parent, nullptr) // ˆÏ÷
 {
 }
 
 Transform::Transform(Transform* const parent, D3DXVECTOR3* const location, Rotation* const rotation, D3DXVECTOR3* const scale)
 {
-    D3DXMatrixIdentity(&this->worldMatrix);
-
     this->parentTransform = nullptr;
 
     this->localMatrix = this->CreateWorldTranslationMatrix(location, rotation, scale);
 
-    this->BecomeParents(parent);
+    if (parent)
+    {
+        this->worldMatrix = this->localMatrix * parent->GetWorldMatrix();
+        this->BecomeParents(parent);
+    }
+    else
+    {
+        this->UpdateWorldMatrix();
+    }
+}
 
+Transform::Transform(Transform* const parent, const D3DXMATRIX* const localMatrix)
+{
+    this->parentTransform = nullptr;
+
+    if (localMatrix) this->localMatrix = *localMatrix;
+    else             D3DXMatrixIdentity(&this->localMatrix);
+
+    if (parent)
+    {
+        this->worldMatrix = this->localMatrix * parent->GetWorldMatrix();
+        this->BecomeParents(parent);
+    }
+    else
+    {
+        this->UpdateWorldMatrix();
+    }
 }
 
 Transform::~Transform()
 {
-    // è¦ªã‹ã‚‰è‡ªåˆ†ã‚’é™¤ã
-    if (this->parentTransform)
-    {
-        this->parentTransform->RemoveChild(this);
-    }
-
-    // å­ä¾›ã®è¦ªã‚’è§£é™¤
-    for (auto&& child : this->childrenTransforms)
-    {
-        if (child)
-        {
-            child->SetParent(nullptr);
-        }
-    }
+    //OutputDebugFormat("{} called.", __func__);
 }
 
-
-
-/**************************************** è¦ªå­é–¢é€£ ****************************************/
+/**************************************** eŽqŠÖ˜A ****************************************/
 
 Transform* Transform::GetParent() const
 {
@@ -50,7 +58,8 @@ Transform* Transform::GetParent() const
 void Transform::SetParent(Transform* const parent)
 {
     if (parent) this->parentTransform = parent;
-    else        this->BecomeParents(nullptr);
+    // ˆø”null‚ÌŽž‚ÍeŽq‰ðœ
+    else        this->BreakParents();
 }
 
 const std::vector<Transform*>& Transform::GetChildren() const
@@ -62,56 +71,54 @@ void Transform::BecomeParents(Transform* const parent)
 {
     if (parent)
     {
-        parent->AddChild(this);
-
-        this->parentTransform = parent;
-
-        this->UpdateWorldMatrix();
-        this->UpdateLocalMatrix();
+        if (parent->AddChild(this))
+        {
+            // e‚Ì•ÏX‚É‚æ‚és—ñXV
+            this->UpdateLocalMatrix();
+            this->UpdateWorldMatrix();
+        }
     }
     else
     {
-        // ä»Šã®è¦ªã‚’è§£é™¤
-        if (this->parentTransform)
-        {
-            this->parentTransform->RemoveChild(this);
-        }
-
-        this->parentTransform = nullptr;
-
-        this->UpdateWorldMatrix();
-        this->UpdateLocalMatrix();
+        this->BreakParents();
     }
+}
+
+void Transform::BreakParents()
+{
+    if (!this->parentTransform) return;
+
+    // ¡‚Ìe‚ð‰ðœ
+    this->parentTransform->RemoveChild(this);
+
+    this->parentTransform = nullptr;
+
+    this->UpdateLocalMatrix(false);
+    this->UpdateWorldMatrix();
 }
 
 bool Transform::AddChild(Transform* const child)
 {
-    if (child)
-    {
-        // è‡ªåˆ†ã®å…ˆç¥–ã«å­ãŒã„ãŸ
-        if (this->CheckAncestor(child)) return false;
+    if (!child) return false;
 
-        // å‰ã®è¦ªã‚’è§£é™¤
-        Transform* prevParent = child->GetParent();
-        if (prevParent)
-        {
-            prevParent->RemoveChild(child);
-        }
+    // Ž©•ª‚Ìæ‘c‚ÉŽq‚ª‚¢‚½
+    if (this->CheckAncestor(child)) return false;
 
-        // è¦ªå­ã«ãªã‚‹
-        child->SetParent(this);
-        this->childrenTransforms.push_back(child);
+    // ‘O‚Ìe‚ð‰ðœ
+    child->BreakParents();
 
-        return true;
-    }
+    // eŽq‚É‚È‚é
+    child->SetParent(this);
+    this->childrenTransforms.push_back(child);
 
-    return false;
+    return true;
 }
 
 bool Transform::RemoveChild(Transform* const child)
 {
-    if (child && !this->childrenTransforms.empty())
+    if (child && this->HasChild())
     {
+        // erase_remove ‚Åˆ—‚‘¬‰»
         this->childrenTransforms.erase
         (
             std::remove
@@ -155,11 +162,19 @@ bool Transform::HasChild()
 
 
 
-/**************************************** è¡Œåˆ— ****************************************/
+/**************************************** s—ñ ****************************************/
 
 const D3DXMATRIX& Transform::GetWorldMatrix() const
 {
     return this->worldMatrix;
+}
+
+void Transform::SetWorldMatrix(const D3DXMATRIX* const worldMatrix)
+{
+    if (worldMatrix) this->worldMatrix = *worldMatrix;
+    else D3DXMatrixIdentity(&this->worldMatrix);
+
+    this->UpdateLocalMatrix();
 }
 
 const D3DXMATRIX& Transform::GetLocalMatrix() const
@@ -167,13 +182,24 @@ const D3DXMATRIX& Transform::GetLocalMatrix() const
     return this->localMatrix;
 }
 
+void Transform::SetLocalMatrix(const D3DXMATRIX* const localMatrix)
+{
+    if (localMatrix) this->localMatrix = *localMatrix;
+    else D3DXMatrixIdentity(&this->localMatrix);
+
+    this->UpdateWorldMatrix();
+}
+
 D3DXMATRIX Transform::GetWorldRotationMatrix() const
 {
-    D3DXMATRIX     result;
-    D3DXVECTOR3    dummy;
-    D3DXQUATERNION tempQuat;
+    D3DXMATRIX     result = {};
+    D3DXVECTOR3    dummy = {};
+    D3DXQUATERNION tempQuat = {};
 
+    // ƒ[ƒ‹ƒhs—ñ‚©‚çƒNƒH[ƒ^ƒjƒIƒ“‚ð’Šo
     D3DXMatrixDecompose(&dummy, &tempQuat, &dummy, &this->worldMatrix);
+
+    // ƒNƒH[ƒ^ƒjƒIƒ“‚©‚ç‰ñ“]s—ñ‚ðì¬
     D3DXMatrixRotationQuaternion(&result, &tempQuat);
 
     return result;
@@ -181,11 +207,14 @@ D3DXMATRIX Transform::GetWorldRotationMatrix() const
 
 D3DXMATRIX Transform::GetLocalRotationMatrix() const
 {
-    D3DXMATRIX     result;
-    D3DXVECTOR3    dummy;
-    D3DXQUATERNION tempQuat;
+    D3DXMATRIX     result = {};
+    D3DXVECTOR3    dummy = {};
+    D3DXQUATERNION tempQuat = {};
 
+    // ƒ[ƒJƒ‹s—ñ‚©‚çƒNƒH[ƒ^ƒjƒIƒ“‚ð’Šo
     D3DXMatrixDecompose(&dummy, &tempQuat, &dummy, &this->localMatrix);
+
+    // ƒNƒH[ƒ^ƒjƒIƒ“‚©‚ç‰ñ“]s—ñ‚ðì¬
     D3DXMatrixRotationQuaternion(&result, &tempQuat);
 
     return result;
@@ -228,8 +257,7 @@ D3DXMATRIX Transform::CreateWorldTranslationMatrix
 
 D3DXMATRIX Transform::CreateWorldTranslationMatrix(const D3DXVECTOR3* const location, const D3DXMATRIX* const rotationMatrix, const D3DXVECTOR3* const scale)
 {
-    D3DXMATRIX scaleMatrix,
-               result;
+    D3DXMATRIX scaleMatrix, result;
 
     D3DXMatrixIdentity(&result);
 
@@ -255,8 +283,7 @@ D3DXMATRIX Transform::CreateWorldTranslationMatrix(const D3DXVECTOR3* const loca
 }
 
 
-
-/**************************************** åº§æ¨™ ****************************************/
+/**************************************** À•W ****************************************/
 
 /***** world *****/
 
@@ -274,7 +301,7 @@ D3DXVECTOR3 Transform::GetWorldLocation() const
 
 /*** set ***/
 
-void Transform::SetWorldLocation(const D3DXVECTOR3* const location)
+void Transform::SetWorldLocation(const D3DXVECTOR3* const location, bool bLocalUpdate)
 {
     if (!location) return;
 
@@ -282,57 +309,57 @@ void Transform::SetWorldLocation(const D3DXVECTOR3* const location)
     this->worldMatrix._42 = location->y;
     this->worldMatrix._43 = location->z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldLocation(float x, float y, float z)
+void Transform::SetWorldLocation(float x, float y, float z, bool bLocalUpdate)
 {
     this->worldMatrix._41 = x;
     this->worldMatrix._42 = y;
     this->worldMatrix._43 = z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldLocationX(float x)
+void Transform::SetWorldLocationX(float x, bool bLocalUpdate)
 {
     this->worldMatrix._41 = x;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldLocationY(float y)
+void Transform::SetWorldLocationY(float y, bool bLocalUpdate)
 {
     this->worldMatrix._42 = y;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldLocationZ(float z)
+void Transform::SetWorldLocationZ(float z, bool bLocalUpdate)
 {
     this->worldMatrix._43 = z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
 /*** add ***/
 
-void Transform::AddWorldLocation(const D3DXVECTOR3* const location)
+void Transform::AddWorldLocation(const D3DXVECTOR3* const location, bool bLocalUpdate)
 {
     this->worldMatrix._41 += location->x;
     this->worldMatrix._42 += location->y;
     this->worldMatrix._43 += location->z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::AddWorldLocation(float x, float y, float z)
+void Transform::AddWorldLocation(float x, float y, float z, bool bLocalUpdate)
 {
     this->worldMatrix._41 += x;
     this->worldMatrix._42 += y;
     this->worldMatrix._43 += z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
 /***** local *****/
@@ -351,68 +378,68 @@ D3DXVECTOR3 Transform::GetLocalLocation() const
 
 /*** set ***/
 
-void Transform::SetLocalLocation(const D3DXVECTOR3* const location)
+void Transform::SetLocalLocation(const D3DXVECTOR3* const location, bool bWorldUpdate)
 {
     this->localMatrix._41 = location->x;
     this->localMatrix._42 = location->y;
     this->localMatrix._43 = location->z;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::SetLocalLocation(float x, float y, float z)
+void Transform::SetLocalLocation(float x, float y, float z, bool bWorldUpdate)
 {
     this->localMatrix._41 = x;
     this->localMatrix._42 = y;
     this->localMatrix._43 = z;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::SetLocalLocationX(float x)
+void Transform::SetLocalLocationX(float x, bool bWorldUpdate)
 {
     this->localMatrix._41 = x;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::SetLocalLocationY(float y)
+void Transform::SetLocalLocationY(float y, bool bWorldUpdate)
 {
     this->localMatrix._42 = y;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::SetLocalLocationZ(float z)
+void Transform::SetLocalLocationZ(float z, bool bWorldUpdate)
 {
     this->localMatrix._43 = z;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
 /*** add ***/
 
-void Transform::AddLocalLocation(const D3DXVECTOR3* const location)
+void Transform::AddLocalLocation(const D3DXVECTOR3* const location, bool bWorldUpdate)
 {
     this->localMatrix._41 += location->x;
     this->localMatrix._42 += location->y;
     this->localMatrix._43 += location->z;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::AddLocalLocation(float x, float y, float z)
+void Transform::AddLocalLocation(float x, float y, float z, bool bWorldUpdate)
 {
     this->localMatrix._41 += x;
     this->localMatrix._42 += y;
     this->localMatrix._43 += z;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
 
 
-/**************************************** å›žè»¢ ****************************************/
+/**************************************** ‰ñ“] ****************************************/
 
 /***** world *****/
 
@@ -420,42 +447,52 @@ void Transform::AddLocalLocation(float x, float y, float z)
 
 Rotation Transform::GetWorldRotation() const
 {
-    D3DXVECTOR3    dummy;
-    D3DXQUATERNION tempQuat;
+    D3DXVECTOR3    dummy = {};
+    D3DXQUATERNION tempQuat = {};
     D3DXMatrixDecompose(&dummy, &tempQuat, &dummy, &this->worldMatrix);
     return Rotation::QuatToRotation(&tempQuat);
 }
 
+D3DXQUATERNION Transform::GetWorldQuaternion() const
+{
+    D3DXQUATERNION result;
+    D3DXMATRIX     rotationMatrix = this->GetWorldRotationMatrix();
+
+    D3DXQuaternionRotationMatrix(&result, &rotationMatrix);
+
+    return result;
+}
+
 /*** set ***/
 
-void Transform::SetWorldRotation(const Rotation* const rotation)
+void Transform::SetWorldRotation(const Rotation* const rotation, bool bLocalUpdate)
 {
     if (!rotation) return;
 
     D3DXVECTOR3 tempLocation = this->GetWorldLocation(),
-                tempScale    = this->GetWorldScale();
+        tempScale    = this->GetWorldScale();
 
     this->worldMatrix 
         = this->CreateWorldTranslationMatrix(&tempLocation, rotation, &tempScale); 
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldRotation(float yaw, float pitch, float roll)
+void Transform::SetWorldRotation(float yaw, float pitch, float roll, bool bLocalUpdate)
 {
-    D3DXVECTOR3 tempLocation = this->GetWorldLocation(),
-                tempScale    = this->GetWorldScale();
+    D3DXVECTOR3 tempLocation = this->GetWorldLocation();
+    D3DXVECTOR3 tempScale    = this->GetWorldScale();
     Rotation    tempRotation(yaw, pitch, roll);
 
     this->worldMatrix 
         = this->CreateWorldTranslationMatrix(&tempLocation, &tempRotation, &tempScale);
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
 /*** add ***/
 
-void Transform::AddWorldRotation(const Rotation* const rotation)
+void Transform::AddWorldRotation(const Rotation* const rotation, bool bLocalUpdate)
 {
     if (!rotation) return;
 
@@ -474,10 +511,10 @@ void Transform::AddWorldRotation(const Rotation* const rotation)
     this->worldMatrix._42 = tempLocation.y;
     this->worldMatrix._43 = tempLocation.z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::AddWorldRotation(float yaw, float pitch, float roll)
+void Transform::AddWorldRotation(float yaw, float pitch, float roll, bool bLocalUpdate)
 {
     D3DXVECTOR3 tempLocation = this->GetWorldLocation();
     D3DXMATRIX  rotationMatrix;
@@ -494,15 +531,15 @@ void Transform::AddWorldRotation(float yaw, float pitch, float roll)
     this->worldMatrix._42 = tempLocation.y;
     this->worldMatrix._43 = tempLocation.z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
 /*** Quat ***/
 
-void Transform::WorldRotateAroundAxis(float x, float y, float z, float w)
+void Transform::WorldRotateAroundAxis(float x, float y, float z, float w, bool bLocalUpdate)
 {
-    D3DXVECTOR3    axis(x, y, z),
-                   tempLocation = this->GetWorldLocation();
+    D3DXVECTOR3    axis(x, y, z);
+    D3DXVECTOR3    tempLocation = this->GetWorldLocation();
     D3DXQUATERNION tempQuat(0.0f,0.0f,0.0f,1.0f);
     D3DXMATRIX     rotationMatrix;
 
@@ -519,10 +556,10 @@ void Transform::WorldRotateAroundAxis(float x, float y, float z, float w)
     this->worldMatrix._42 = tempLocation.y;
     this->worldMatrix._43 = tempLocation.z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::WorldRotateAroundAxis(const D3DXVECTOR3* axis, float w)
+void Transform::WorldRotateAroundAxis(const D3DXVECTOR3* axis, float w, bool bLocalUpdate)
 {
     D3DXVECTOR3    tempLocation = this->GetWorldLocation();
     D3DXQUATERNION tempQuat(0.0f, 0.0f, 0.0f, 1.0f);
@@ -541,7 +578,54 @@ void Transform::WorldRotateAroundAxis(const D3DXVECTOR3* axis, float w)
     this->worldMatrix._42 = tempLocation.y;
     this->worldMatrix._43 = tempLocation.z;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
+}
+
+void Transform::SetWorldQuaternion(float x, float y, float z, float w, bool bLocalUpdate)
+{
+    D3DXVECTOR3    axis(x, y, z);
+    D3DXVECTOR3    tempLocation = this->GetWorldLocation();
+    D3DXVECTOR3    tempScale    = this->GetWorldScale();
+    D3DXQUATERNION tempQuat(0.0f,0.0f,0.0f,1.0f);
+    D3DXMATRIX     rotationMatrix;
+
+    D3DXQuaternionRotationAxis(&tempQuat, &axis, w);
+    D3DXMatrixRotationQuaternion(&rotationMatrix, &tempQuat);
+
+    this->worldMatrix
+        = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
+
+    if(bLocalUpdate) this->UpdateLocalMatrix();
+}
+
+void Transform::SetWorldQuaternion(const D3DXVECTOR3 * axis, float w, bool bLocalUpdate)
+{
+    D3DXVECTOR3    tempLocation = this->GetWorldLocation();
+    D3DXVECTOR3    tempScale    = this->GetWorldScale();
+    D3DXQUATERNION tempQuat(0.0f,0.0f,0.0f,1.0f);
+    D3DXMATRIX     rotationMatrix;
+
+    D3DXQuaternionRotationAxis(&tempQuat, axis, w);
+    D3DXMatrixRotationQuaternion(&rotationMatrix, &tempQuat);
+
+    this->worldMatrix
+        = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
+
+    if(bLocalUpdate) this->UpdateLocalMatrix();
+}
+
+void Transform::SetWorldQuaternion(const D3DXQUATERNION* quat, bool bLocalUpdate)
+{
+    D3DXVECTOR3 tempLocation = this->GetWorldLocation();
+    D3DXVECTOR3 tempScale    = this->GetWorldScale();
+    D3DXMATRIX  rotationMatrix;
+
+    D3DXMatrixRotationQuaternion(&rotationMatrix, quat);
+
+    this->worldMatrix
+        = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
+
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
 /***** local *****/
@@ -550,20 +634,30 @@ void Transform::WorldRotateAroundAxis(const D3DXVECTOR3* axis, float w)
 
 Rotation Transform::GetLocalRotation() const
 {
-    D3DXVECTOR3    dummy;
-    D3DXQUATERNION tempQuat;
+    D3DXVECTOR3    dummy = {};
+    D3DXQUATERNION tempQuat = {};
     D3DXMatrixDecompose(&dummy, &tempQuat, &dummy, &this->localMatrix);
     return Rotation::QuatToRotation(&tempQuat);
 }
 
+D3DXQUATERNION Transform::GetLocalQuaternion() const
+{
+    D3DXQUATERNION result;
+    D3DXMATRIX     rotationMatrix = this->GetLocalRotationMatrix();
+
+    D3DXQuaternionRotationMatrix(&result, &rotationMatrix);
+
+    return result;
+}
+
 /*** set ***/
 
-void Transform::SetLocalRotation(const Rotation* const rotation)
+void Transform::SetLocalRotation(const Rotation* const rotation, bool bWorldUpdate)
 {
     if (!rotation) return;
 
     D3DXVECTOR3 tempLocation = this->GetLocalLocation(),
-                tempScale    = this->GetLocalScale();
+        tempScale    = this->GetLocalScale();
 
     this->localMatrix
         = this->CreateWorldTranslationMatrix(&tempLocation, rotation, &tempScale);
@@ -571,21 +665,21 @@ void Transform::SetLocalRotation(const Rotation* const rotation)
     this->UpdateWorldMatrix();
 }
 
-void Transform::SetLocalRotation(float yaw, float pitch, float roll)
+void Transform::SetLocalRotation(float yaw, float pitch, float roll, bool bWorldUpdate)
 {
-    D3DXVECTOR3 tempLocation = this->GetLocalLocation(),
-                tempScale    = this->GetLocalScale();
+    D3DXVECTOR3 tempLocation = this->GetLocalLocation();
+    D3DXVECTOR3 tempScale    = this->GetLocalScale();
     Rotation    tempRotation(yaw, pitch, roll);
 
     this->localMatrix 
         = this->CreateWorldTranslationMatrix(&tempLocation, &tempRotation, &tempScale);
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
 /*** add ***/
 
-void Transform::AddLocalRotation(const Rotation* const rotation)
+void Transform::AddLocalRotation(const Rotation* const rotation, bool bWorldUpdate)
 {
     if (!rotation) return;
 
@@ -604,10 +698,10 @@ void Transform::AddLocalRotation(const Rotation* const rotation)
     this->localMatrix._42 = tempLocation.y;
     this->localMatrix._43 = tempLocation.z;
 
-    this->UpdateLocalMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::AddLocalRotation(float yaw, float pitch, float roll)
+void Transform::AddLocalRotation(float yaw, float pitch, float roll, bool bWorldUpdate)
 {
     D3DXVECTOR3 tempLocation = this->GetLocalLocation();
     D3DXMATRIX  rotationMatrix;
@@ -624,15 +718,15 @@ void Transform::AddLocalRotation(float yaw, float pitch, float roll)
     this->localMatrix._42 = tempLocation.y;
     this->localMatrix._43 = tempLocation.z;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
 /*** Quat ***/
 
-void Transform::LocalRotateAroundAxis(float x, float y, float z, float w)
+void Transform::LocalRotateAroundAxis(float x, float y, float z, float w, bool bWorldUpdate)
 {
-    D3DXVECTOR3    axis(x, y, z),
-                   tempLocation = this->GetLocalLocation();
+    D3DXVECTOR3    axis(x, y, z);
+    D3DXVECTOR3    tempLocation = this->GetLocalLocation();
     D3DXQUATERNION tempQuat(0,0,0,1);
     D3DXMATRIX     rotationMatrix;
 
@@ -649,10 +743,10 @@ void Transform::LocalRotateAroundAxis(float x, float y, float z, float w)
     this->localMatrix._42 = tempLocation.y;
     this->localMatrix._43 = tempLocation.z;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::LocalRotateAroundAxis(const D3DXVECTOR3* axis, float w)
+void Transform::LocalRotateAroundAxis(const D3DXVECTOR3* axis, float w, bool bWorldUpdate)
 {
     D3DXVECTOR3    tempLocation = this->GetLocalLocation();
     D3DXQUATERNION tempQuat(0,0,0,1);
@@ -671,12 +765,59 @@ void Transform::LocalRotateAroundAxis(const D3DXVECTOR3* axis, float w)
     this->localMatrix._42 = tempLocation.y;
     this->localMatrix._43 = tempLocation.z;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
+}
+
+void Transform::SetLocalQuaternion(float x, float y, float z, float w, bool bWorldUpdate)
+{
+    D3DXVECTOR3    axis(x, y, z);
+    D3DXVECTOR3    tempLocation = this->GetLocalLocation();
+    D3DXVECTOR3    tempScale    = this->GetLocalScale();
+    D3DXQUATERNION tempQuat(0.0f,0.0f,0.0f,1.0f);
+    D3DXMATRIX     rotationMatrix;
+
+    D3DXQuaternionRotationAxis(&tempQuat, &axis, w);
+    D3DXMatrixRotationQuaternion(&rotationMatrix, &tempQuat);
+
+    this->localMatrix
+        = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
+
+    if(bWorldUpdate) this->UpdateWorldMatrix();
+}
+
+void Transform::SetLocalQuaternion(const D3DXVECTOR3 * axis, float w, bool bWorldUpdate)
+{
+    D3DXVECTOR3    tempLocation = this->GetLocalLocation();
+    D3DXVECTOR3    tempScale    = this->GetLocalScale();
+    D3DXQUATERNION tempQuat(0.0f,0.0f,0.0f,1.0f);
+    D3DXMATRIX     rotationMatrix;
+
+    D3DXQuaternionRotationAxis(&tempQuat, axis, w);
+    D3DXMatrixRotationQuaternion(&rotationMatrix, &tempQuat);
+
+    this->localMatrix
+        = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
+
+    if(bWorldUpdate) this->UpdateWorldMatrix();
+}
+
+void Transform::SetLocalQuaternion(const D3DXQUATERNION * quat, bool bWorldUpdate)
+{
+    D3DXVECTOR3 tempLocation = this->GetLocalLocation();
+    D3DXVECTOR3 tempScale    = this->GetLocalScale();
+    D3DXMATRIX  rotationMatrix;
+
+    D3DXMatrixRotationQuaternion(&rotationMatrix, quat);
+
+    this->localMatrix
+        = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
+
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
 
 
-/**************************************** æ‹¡ç¸® ****************************************/
+/**************************************** Šgk ****************************************/
 
 /***** world *****/
 
@@ -701,7 +842,7 @@ D3DXVECTOR3 Transform::GetWorldScale() const
 
 /*** set ***/
 
-void Transform::SetWorldScale(const D3DXVECTOR3* const scale)
+void Transform::SetWorldScale(const D3DXVECTOR3* const scale, bool bLocalUpdate)
 {
     if (!scale) return;
 
@@ -711,22 +852,22 @@ void Transform::SetWorldScale(const D3DXVECTOR3* const scale)
     this->worldMatrix
         = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, scale);
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldScale(float x, float y, float z)
+void Transform::SetWorldScale(float x, float y, float z, bool bLocalUpdate)
 {
-    D3DXVECTOR3 tempLocation   = this->GetWorldLocation(),
-                tempScale      = { x, y, z };
+    D3DXVECTOR3 tempLocation   = this->GetWorldLocation();
+    D3DXVECTOR3 tempScale      = { x, y, z };
     D3DXMATRIX  rotationMatrix = this->GetWorldRotationMatrix();
 
     this->worldMatrix
         = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldScaleX(float x)
+void Transform::SetWorldScaleX(float x, bool bLocalUpdate)
 {
     float mult = x / this->GetWorldScale().x;
 
@@ -734,10 +875,10 @@ void Transform::SetWorldScaleX(float x)
     this->worldMatrix._12 *= mult;
     this->worldMatrix._13 *= mult;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldScaleY(float y)
+void Transform::SetWorldScaleY(float y, bool bLocalUpdate)
 {
     float mult = y / this->GetWorldScale().y;
 
@@ -745,10 +886,10 @@ void Transform::SetWorldScaleY(float y)
     this->worldMatrix._22 *= mult;
     this->worldMatrix._23 *= mult;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetWorldScaleZ(float z)
+void Transform::SetWorldScaleZ(float z, bool bLocalUpdate)
 {
     float mult = z / this->GetWorldScale().z;
 
@@ -756,35 +897,49 @@ void Transform::SetWorldScaleZ(float z)
     this->worldMatrix._32 *= mult;
     this->worldMatrix._33 *= mult;
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
 /*** add ***/
 
-void Transform::AddWorldScale(const D3DXVECTOR3* const scale)
+void Transform::AddWorldScale(const D3DXVECTOR3* const scale, bool bLocalUpdate)
 {
     if (!scale) return;
 
-    D3DXVECTOR3 tempLocation   = this->GetWorldLocation(),
-                tempScale      = this->GetWorldScale() + *scale;
+    D3DXVECTOR3 tempLocation   = this->GetWorldLocation();
+    D3DXVECTOR3 tempScale      = this->GetWorldScale() + *scale;
     D3DXMATRIX  rotationMatrix = this->GetWorldRotationMatrix();
 
     this->worldMatrix
         = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::AddWorldScale(float x, float y, float z)
+void Transform::AddWorldScale(float x, float y, float z, bool bLocalUpdate)
 {
-    D3DXVECTOR3 tempLocation   = this->GetWorldLocation(),
-                tempScale      = this->GetWorldScale() + D3DXVECTOR3(x, y, z);
+    D3DXVECTOR3 tempLocation   = this->GetWorldLocation();
+    D3DXVECTOR3 tempScale      = this->GetWorldScale() + D3DXVECTOR3(x, y, z);
+    D3DXMATRIX  scaleMatrix, rotationInverse;
     D3DXMATRIX  rotationMatrix = this->GetWorldRotationMatrix();
+
+    //this->worldMatrix._41 = 0;
+    //this->worldMatrix._42 = 0;
+    //this->worldMatrix._43 = 0;
+
+    //D3DXMatrixInverse(&rotationInverse, nullptr, &rotationMatrix);
+
+    //D3DXMatrixScaling(&scaleMatrix, x, y, z);
+    //this->worldMatrix = this->worldMatrix * rotationInverse * scaleMatrix * rotationMatrix;
+
+    //this->worldMatrix._41 = tempLocation.x;
+    //this->worldMatrix._42 = tempLocation.y;
+    //this->worldMatrix._43 = tempLocation.z;
 
     this->worldMatrix
         = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
 
-    this->UpdateLocalMatrix();
+    if(bLocalUpdate) this->UpdateLocalMatrix();
 }
 
 /***** local *****/
@@ -810,7 +965,7 @@ D3DXVECTOR3 Transform::GetLocalScale() const
 
 /*** set ***/
 
-void Transform::SetLocalScale(const D3DXVECTOR3* const scale)
+void Transform::SetLocalScale(const D3DXVECTOR3* const scale, bool bWorldUpdate)
 {
     if (!scale) return;
 
@@ -820,22 +975,22 @@ void Transform::SetLocalScale(const D3DXVECTOR3* const scale)
     this->localMatrix
         = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, scale);
 
-    this->UpdateLocalMatrix();
+    if(bWorldUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::SetLocalScale(float x, float y, float z)
+void Transform::SetLocalScale(float x, float y, float z, bool bWorldUpdate)
 {
-    D3DXVECTOR3 tempLocation   = this->GetLocalLocation(),
-                tempScale      = { x, y, z };
+    D3DXVECTOR3 tempLocation   = this->GetLocalLocation();
+    D3DXVECTOR3 tempScale      = { x, y, z };
     D3DXMATRIX  rotationMatrix = this->GetLocalRotationMatrix();
 
     this->localMatrix
         = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::SetLocalScaleX(float x)
+void Transform::SetLocalScaleX(float x, bool bWorldUpdate)
 {
     float mult = x / this->GetLocalScale().x;
 
@@ -843,10 +998,10 @@ void Transform::SetLocalScaleX(float x)
     this->localMatrix._12 *= mult;
     this->localMatrix._13 *= mult;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::SetLocalScaleY(float y)
+void Transform::SetLocalScaleY(float y, bool bWorldUpdate)
 {
     float mult = y / this->GetLocalScale().y;
 
@@ -854,10 +1009,10 @@ void Transform::SetLocalScaleY(float y)
     this->localMatrix._22 *= mult;
     this->localMatrix._23 *= mult;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
-void Transform::SetLocalScaleZ(float z)
+void Transform::SetLocalScaleZ(float z, bool bWorldUpdate)
 {
     float mult = z / this->GetLocalScale().z;
 
@@ -865,40 +1020,39 @@ void Transform::SetLocalScaleZ(float z)
     this->localMatrix._32 *= mult;
     this->localMatrix._33 *= mult;
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateWorldMatrix();
 }
 
 /*** add ***/
 
-void Transform::AddLocalScale(const D3DXVECTOR3* const scale)
+void Transform::AddLocalScale(const D3DXVECTOR3* const scale, bool bWorldUpdate)
 {
     if (!scale) return;
 
-    D3DXVECTOR3 tempLocation   = this->GetLocalLocation(),
-                tempScale      = this->GetLocalScale() + *scale;
+    D3DXVECTOR3 tempLocation   = this->GetLocalLocation();
+    D3DXVECTOR3 tempScale      = this->GetLocalScale() + *scale;
     D3DXMATRIX  rotationMatrix = this->GetLocalRotationMatrix();
 
     this->localMatrix
         = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateLocalMatrix();
 }
 
-void Transform::AddLocalScale(float x, float y, float z)
+void Transform::AddLocalScale(float x, float y, float z, bool bWorldUpdate)
 {
-    D3DXVECTOR3 tempLocation   = this->GetLocalLocation(),
-                tempScale      = this->GetLocalScale() + D3DXVECTOR3(x, y, z);
+    D3DXVECTOR3 tempLocation   = this->GetLocalLocation();
+    D3DXVECTOR3 tempScale      = this->GetLocalScale() + D3DXVECTOR3(x, y, z);
     D3DXMATRIX  rotationMatrix = this->GetLocalRotationMatrix();
 
     this->localMatrix
         = Transform::CreateWorldTranslationMatrix(&tempLocation, &rotationMatrix, &tempScale);
 
-    this->UpdateWorldMatrix();
+    if(bWorldUpdate) this->UpdateLocalMatrix();
 }
 
 
-
-/**************************************** æ–¹å‘ ****************************************/
+/**************************************** •ûŒü ****************************************/
 
 D3DXVECTOR3 Transform::GetForwardVector() const
 {
@@ -942,45 +1096,117 @@ D3DXVECTOR3 Transform::GetRightVector() const
     return result;
 }
 
-
-
-/**************************************** æ›´æ–° ****************************************/
-
-void Transform::UpdateWorldMatrix()
+D3DXVECTOR3 Transform::GetLocalForwardVector() const
 {
-    if (this->HasParent() && !D3DXMatrixIsIdentity(&this->parentTransform->GetLocalMatrix()))
+    D3DXVECTOR3 result
+    (
+        this->localMatrix._31,
+        this->localMatrix._32,
+        this->localMatrix._33
+    );
+
+    D3DXVec3Normalize(&result, &result);
+
+    return result;
+}
+
+D3DXVECTOR3 Transform::GetLocalUpVector() const
+{
+    D3DXVECTOR3 result
+    (
+        this->localMatrix._21,
+        this->localMatrix._22,
+        this->localMatrix._23
+    );
+
+    D3DXVec3Normalize(&result, &result);
+
+    return result;
+}
+
+D3DXVECTOR3 Transform::GetLocalRightVector() const
+{
+    D3DXVECTOR3 result
+    (
+        this->localMatrix._11,
+        this->localMatrix._12,
+        this->localMatrix._13
+    );
+
+    D3DXVec3Normalize(&result, &result);
+
+    return result;
+}
+
+
+
+
+
+/**************************************** XV ****************************************/
+
+void Transform::UpdateWorldMatrix(bool bCallEventUpdated)
+{
+    // e‚ª‚¢‚éê‡
+    if (this->HasParent())
     {
-        this->worldMatrix = this->localMatrix * this->parentTransform->GetLocalMatrix();
+        D3DXMATRIX parentMatrix = this->parentTransform->GetWorldMatrix();
+
+        // es—ñ‚ª’PˆÊs—ñ‚Ìê‡ Š|‚¯ŽZ‚µ‚È‚¢
+        D3DXMatrixIsIdentity(&parentMatrix)
+            ? this->worldMatrix = this->localMatrix
+            : this->worldMatrix = this->localMatrix * parentMatrix;
     }
+    // e‚ª‚¢‚È‚¢ê‡
     else
     {
         this->worldMatrix = this->localMatrix;
     }
 
-    // å­ä¾›ã‚‚æ›´æ–°
+    // Žq‹Ÿ‚½‚¿‚ðXV
     for (auto&& child : this->childrenTransforms)
     {
         child->UpdateWorldMatrix();
     }
+
+    // ƒCƒxƒ“ƒg”­¶
+    if (bCallEventUpdated)
+        this->EventTransformUpdated();
 }
 
-void Transform::UpdateLocalMatrix()
+void Transform::UpdateLocalMatrix(bool bCallEventUpdated)
 {
-    if (this->HasParent() && !D3DXMatrixIsIdentity(&this->parentTransform->GetLocalMatrix()))
+    // e‚ª‚¢‚éê‡
+    if (this->HasParent())
     {
-        D3DXMATRIX parentInverse;
-        D3DXMatrixInverse(&parentInverse, nullptr, &this->parentTransform->GetLocalMatrix());
+        D3DXMATRIX parentMatrix = this->parentTransform->GetWorldMatrix();
+        
+        if (!D3DXMatrixIsIdentity(&parentMatrix))
+        {
+            D3DXMATRIX parentInverse;
 
-        this->localMatrix = this->worldMatrix * parentInverse;
+            D3DXMatrixInverse(&parentInverse, nullptr, &this->parentTransform->GetWorldMatrix());
+
+            this->localMatrix = this->worldMatrix * parentInverse;
+        }
+        // es—ñ‚ª’PˆÊs—ñ‚Ì‚Æ‚«
+        else
+        {
+            this->localMatrix = this->worldMatrix;
+        }
     }
+    // e‚ª‚¢‚È‚¢ê‡
     else
     {
         this->localMatrix = this->worldMatrix;
     }
 
-    // å­ä¾›ã‚‚æ›´æ–°
+    // Žq‹Ÿ‚½‚¿‚ðXV
     for (auto&& child : this->childrenTransforms)
     {
         child->UpdateWorldMatrix();
     }
+
+    // ƒCƒxƒ“ƒg”­¶
+    if (bCallEventUpdated)
+        this->EventTransformUpdated();
 }
